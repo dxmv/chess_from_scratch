@@ -5,6 +5,43 @@
 #include <netinet/in.h> // definitions for internet domain addresses (struct sockaddr_in)
 #include <sys/socket.h> // socket functions like socket(), bind(), listen(), and accept()
 
+/**
+ * Opens a file and serves it to the server
+**/
+void serve_file(int client_fd, const char *filepath) {
+    	FILE *fp = fopen(filepath, "r"); // read the file
+    	if (!fp) {
+        	// file not found, send 404 response
+        	char *notFound = "http/1.1 404 not found\r\ncontent-length: 9\r\n\r\nnot found";
+        	write(client_fd, notFound, strlen(notFound));
+        	return;
+    	}
+
+    	// get file size
+    	fseek(fp, 0, SEEK_END);
+    	long filesize = ftell(fp);
+    	rewind(fp);
+
+    	// allocate buffer and read file content
+    	char *buffer = malloc(filesize);
+    	if (!buffer) {
+        	fclose(fp);
+        	return;
+    	}
+    	fread(buffer, 1, filesize, fp);
+    	fclose(fp);
+
+	// create header with content length and content type
+	char header[256];
+	sprintf(header, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %ld\r\n\r\n", filesize);
+
+    	// send header then file content
+    	write(client_fd, header, strlen(header));
+    	write(client_fd, buffer, filesize);
+
+    	free(buffer);
+}
+
 int main(void) {
     	// file descriptor for the server's listening socket and for client connections
     	int server_fd, client_fd;
@@ -22,9 +59,9 @@ int main(void) {
 	char buffer[1024] = {0};
     
 	// define responses for different routes
-    	char *response_root = "http/1.1 200 ok\r\ncontent-length: 11\r\n\r\nhello root";
+    	char *root_path = "./public/home/index.html";
     	char *response_about = "http/1.1 200 ok\r\ncontent-length: 11\r\n\r\nhello about";
-    	char *response_notfound = "http/1.1 404 not found\r\ncontent-length: 9\r\n\r\nnot found";
+    	char *not_found_path = "./public/not_found/not_found.html";
    
     	//  AF_INET indicates ipv4
     	//  SOCK_STREAM indicates a TCP socket (stream-oriented)
@@ -85,12 +122,12 @@ int main(void) {
         	// simple route handling:
         	// check the requested route and respond accordingly
         	if (strcmp(route, "/") == 0) {
-            		write(client_fd, response_root, strlen(response_root));
+            		serve_file(client_fd,root_path);
         	} else if (strcmp(route, "/about") == 0) {
             		write(client_fd, response_about, strlen(response_about));
         	} else {
             		// if no matching route, send a 404 response
-            		write(client_fd, response_notfound, strlen(response_notfound));
+            		serve_file(client_fd,not_found_path);
         	}
         	close(client_fd);
     }
