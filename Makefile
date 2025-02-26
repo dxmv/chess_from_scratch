@@ -5,5 +5,5 @@ SOURCE = main.c
 all:
 	${CC} ${SOURCE} -o ${OUTPUT}
 
-clean:
+cln:
 	rm -rf ${OUTPUT}

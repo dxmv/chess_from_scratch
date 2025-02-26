@@ -21,10 +21,11 @@ int main(void) {
 	// buffer to store incoming data from the client; initialized to zero
 	char buffer[1024] = {0};
     
-	// a simple static http response (status line, headers, blank line, and body)
-	char *response = "http/1.1 200 ok\r\ncontent-length: 13\r\n\r\nhello world";
+	// define responses for different routes
+    	char *response_root = "http/1.1 200 ok\r\ncontent-length: 11\r\n\r\nhello root";
+    	char *response_about = "http/1.1 200 ok\r\ncontent-length: 11\r\n\r\nhello about";
+    	char *response_notfound = "http/1.1 404 not found\r\ncontent-length: 9\r\n\r\nnot found";
    
-	printf("Creating a connection...\n");
     	//  AF_INET indicates ipv4
     	//  SOCK_STREAM indicates a TCP socket (stream-oriented)
     	//  0 lets the system choose the appropriate protocol
@@ -33,7 +34,6 @@ int main(void) {
         	exit(EXIT_FAILURE);     
     	}
 
-	printf("Setting up the connection connection...\n");
 	// SO_REUSEADDR allows the socket to be quickly reused after the program terminates
     	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         	perror("setsockopt");
@@ -44,7 +44,6 @@ int main(void) {
         addr.sin_addr.s_addr = INADDR_ANY;      // accept connections from any network interface
 	addr.sin_port = htons(8080);           // set the port number to 8080; htons converts to network byte order
 
-	printf("Binding the connection...\n");
     	//  casts addr to a generic sockaddr pointer
     	//  if binding fails (e.g., port already in use), print error and exit
     	if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
@@ -58,12 +57,12 @@ int main(void) {
         	exit(EXIT_FAILURE);
     	}
 
-	printf("Listening on port: 8080\n");
 	// main loop to accept and handle incoming client connections
     	while (1) {
+		printf("Listening on port: 8080...\n");
         	// accept an incoming connection:
-        	// - returns a new file descriptor (client_fd) for the accepted connection
-        	// - addr and addrlen can be used to retrieve client address info (here, we reuse our addr)
+        	//  returns a new file descriptor (client_fd) for the accepted connection
+        	//  addr and addrlen can be used to retrieve client address info (here, we reuse our addr)
         	if ((client_fd = accept(server_fd, (struct sockaddr *)&addr, (socklen_t*)&addrlen)) < 0) {
             		perror("accept");
             		exit(EXIT_FAILURE);
@@ -72,18 +71,27 @@ int main(void) {
         	// clear the buffer to ensure it's empty before reading new data
         	memset(buffer, 0, sizeof(buffer));
         
-        	// read data from the client into the buffer (blocking call)
-        	// - attempts to read up to 1024 bytes
+        	// read data from the client into the buffer 
         	read(client_fd, buffer, 1024);
-        
+
         	// print the received request to the console for debugging purposes
         	printf("received request:\n%s\n", buffer);
 
-        	// send the fixed http response back to the client:
-        	// - write() sends the response string; strlen() is used to calculate its length
-        	write(client_fd, response, strlen(response));
-        
-        	// close the client connection after responding
+		// assume that the request is well formed
+		// on the first line we have the method, route and protocol we're using
+        	char method[16], route[256];
+        	sscanf(buffer, "%15s %255s", method, route); // read method and route safely
+
+        	// simple route handling:
+        	// check the requested route and respond accordingly
+        	if (strcmp(route, "/") == 0) {
+            		write(client_fd, response_root, strlen(response_root));
+        	} else if (strcmp(route, "/about") == 0) {
+            		write(client_fd, response_about, strlen(response_about));
+        	} else {
+            		// if no matching route, send a 404 response
+            		write(client_fd, response_notfound, strlen(response_notfound));
+        	}
         	close(client_fd);
     }
     
