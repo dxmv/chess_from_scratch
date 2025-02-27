@@ -5,10 +5,16 @@
 #include <netinet/in.h> // definitions for internet domain addresses (struct sockaddr_in)
 #include <sys/socket.h> // socket functions like socket(), bind(), listen(), and accept()
 
+// define common routes
+#define HOME_HTML_PATH "./public/home/index.html"
+#define HOME_JS_PATH "./public/home/script.js"
+
+
 /**
  * Opens a file and serves it to the server
+ * file_type - 0 for html, 1 for js, 2 for css
 **/
-void serve_file(int client_fd, const char *filepath) {
+void serve_file(int client_fd, const char *filepath, int file_type) {
     	FILE *fp = fopen(filepath, "r"); // read the file
     	if (!fp) {
         	// file not found, send 404 response
@@ -33,7 +39,12 @@ void serve_file(int client_fd, const char *filepath) {
 
 	// create header with content length and content type
 	char header[256];
-	sprintf(header, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %ld\r\n\r\n", filesize);
+    if(file_type == 0){
+    	sprintf(header, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %ld\r\n\r\n", filesize);
+    }
+    else if(file_type == 1){
+    	sprintf(header, "HTTP/1.1 200 OK\r\nContent-Type: text/javascript\r\nContent-Length: %ld\r\n\r\n", filesize);
+    }
 
     	// send header then file content
     	write(client_fd, header, strlen(header));
@@ -59,7 +70,6 @@ int main(void) {
 	char buffer[1024] = {0};
     
 	// define responses for different routes
-    	char *root_path = "./public/home/index.html";
     	char *response_about = "http/1.1 200 ok\r\ncontent-length: 11\r\n\r\nhello about";
     	char *not_found_path = "./public/not_found/not_found.html";
    
@@ -119,15 +129,14 @@ int main(void) {
         	char method[16], route[256];
         	sscanf(buffer, "%15s %255s", method, route); // read method and route safely
 
-        	// simple route handling:
         	// check the requested route and respond accordingly
-        	if (strcmp(route, "/") == 0) {
-            		serve_file(client_fd,root_path);
-        	} else if (strcmp(route, "/about") == 0) {
-            		write(client_fd, response_about, strlen(response_about));
+        	if (strcmp(route, "/home") == 0 ) {
+            		serve_file(client_fd,HOME_HTML_PATH,0);
+            } else if (strcmp(route, "/home/script.js") == 0 ) {
+            		serve_file(client_fd,HOME_JS_PATH,1);
         	} else {
             		// if no matching route, send a 404 response
-            		serve_file(client_fd,not_found_path);
+            		serve_file(client_fd,not_found_path,0);
         	}
         	close(client_fd);
     }
